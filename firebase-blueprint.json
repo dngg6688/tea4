@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A bubble tea menu item.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the drink"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the drink"
+        },
+        "priceM": {
+          "type": "number",
+          "description": "Price for medium size"
+        },
+        "priceL": {
+          "type": "number",
+          "description": "Price for large size"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Optional image URL"
+        },
+        "isAvailable": {
+          "type": "boolean",
+          "description": "Whether the product is currently available"
+        }
+      },
+      "required": ["name", "category", "priceL", "isAvailable"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order containing multiple drinks.",
+      "type": "object",
+      "properties": {
+        "customerName": {
+          "type": "string"
+        },
+        "customerPhone": {
+          "type": "string"
+        },
+        "tableNumber": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "description": "List of ordered items"
+        },
+        "totalAmount": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "preparing", "completed", "cancelled"]
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp"
+        }
+      },
+      "required": ["customerName", "items", "totalAmount", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": {
+        "$ref": "Product"
+      },
+      "description": "Stores the available menu items."
+    },
+    "/orders/{orderId}": {
+      "schema": {
+        "$ref": "Order"
+      },
+      "description": "Stores the customer orders."
+    }
+  }
+}
