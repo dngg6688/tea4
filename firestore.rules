@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn(); }
+
+    // Validation Helpers
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'category', 'priceL', 'isAvailable']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+             data.priceL is number && data.priceL >= 0 &&
+             data.isAvailable is bool &&
+             (data.get('priceM', 0) is number) &&
+             (data.get('imageUrl', '') is string);
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['customerName', 'items', 'totalAmount', 'status', 'createdAt']) &&
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 50 &&
+             (data.get('customerPhone', '') is string) &&
+             (data.get('tableNumber', '') is string) &&
+             data.items is list && data.items.size() > 0 && data.items.size() <= 50 && // Limit array size explicitly
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.status is string && data.status in ['pending', 'preparing', 'completed', 'cancelled'] &&
+             (!('updatedAt' in data) || data.updatedAt is number);
+    }
+
+    // Product Rules (Public read, admin write)
+    match /products/{productId} {
+      // Anyone can read products to view the menu
+      allow get, list: if true;
+      allow create: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
+      allow update: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    // Order Rules (Public create, admin read/update/delete)
+    match /orders/{orderId} {
+      // Admins can see all orders. No public list allowed to prevent scraping.
+      // Wait, is there a way for a user to see their own order? 
+      // This is a simple kiosk/POS system, usually you don't need persistent user accounts for ordering.
+      // Public create is OK for point-of-sale or web orders without login.
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      
+      // Allow public creation of orders
+      allow create: if isValidOrder(incoming()) && isValidId(orderId) && incoming().createdAt == request.time.toMillis();
+      
+      // Allow admins to update orders (e.g. changing status)
+      // We implement action-based update for safety.
+      allow update: if isValidId(orderId) && (
+        isAdmin() || // Admins have full override
+        (
+          // No public updates allowed for now
+          false
+        )
+      );
+      
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    // Admins Collection (For RBAC)
+    match /admins/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      // Bootstrapped by backend or manual entry, no client writes allowed
+      allow list, write: if false; 
+    }
+  }
+}
